@@ -1,0 +1,11 @@
+node_modules/
+.npm-cache/
+.electron-cache/
+.local-app-data/
+.app-data/
+dist/
+release/
+*.log
+.env
+.DS_Store
+Thumbs.db

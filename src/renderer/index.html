@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src https:;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Y&S Launcher V2</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="titlebar">
+      <div class="brand">
+        <img src="assets/icon.png" alt="">
+        <span>Y&S Launcher V2</span>
+      </div>
+      <div class="window-actions">
+        <button id="minimize" title="Reduire">-</button>
+        <button id="maximize" title="Agrandir">□</button>
+        <button id="close" title="Fermer">x</button>
+      </div>
+    </header>
+
+    <main id="app" class="app loading">
+      <section class="loading-view">
+        <div class="loader"></div>
+        <p>Chargement du launcher...</p>
+      </section>
+
+      <section class="login-view hidden">
+        <div class="auth-panel">
+          <div class="auth-header">
+            <img src="assets/icon.png" alt="">
+            <h1>Connexion</h1>
+            <p>Utilise ton compte LaPepterie pour lancer Minecraft.</p>
+          </div>
+
+          <div class="tabs">
+            <button class="tab active" data-auth-tab="login">Connexion</button>
+            <button class="tab" data-auth-tab="register">Inscription</button>
+          </div>
+
+          <form id="login-form" class="auth-form">
+            <label>Pseudo</label>
+            <input id="login-username" autocomplete="username" required>
+            <label>Mot de passe</label>
+            <input id="login-password" type="password" autocomplete="current-password" required>
+            <button type="submit" class="primary">Se connecter</button>
+          </form>
+
+          <form id="register-form" class="auth-form hidden">
+            <label>Pseudo</label>
+            <input id="register-username" autocomplete="username" required>
+            <label>Email</label>
+            <input id="register-email" type="email" autocomplete="email" required>
+            <label>Mot de passe</label>
+            <input id="register-password" type="password" autocomplete="new-password" required>
+            <button type="submit" class="primary">Creer le compte</button>
+          </form>
+
+          <p id="auth-message" class="message"></p>
+        </div>
+      </section>
+
+      <section class="launcher-view hidden">
+        <aside class="sidebar">
+          <div class="profile">
+            <div id="profile-head" class="profile-head"></div>
+            <div>
+              <div id="profile-name" class="profile-name">Aucun compte</div>
+              <button id="logout" class="link-button">Changer de compte</button>
+            </div>
+          </div>
+
+          <nav>
+            <button class="nav active" data-view="home">Accueil</button>
+            <button class="nav" data-view="settings">Parametres</button>
+            <button class="nav" data-view="accounts">Comptes</button>
+          </nav>
+
+          <div class="update-box">
+            <div class="tiny-label">Mise a jour</div>
+            <div id="update-status">Verification au demarrage</div>
+          </div>
+        </aside>
+
+        <section class="content">
+          <section id="home-view" class="content-view">
+            <div class="top-grid">
+              <div class="status-card">
+                <div>
+                  <div class="tiny-label">Serveur</div>
+                  <h2 id="server-name">Minecraft</h2>
+                  <p id="server-status">Statut inconnu</p>
+                </div>
+                <div id="players" class="players">0</div>
+              </div>
+
+              <div class="instance-card">
+                <div class="tiny-label">Instance</div>
+                <select id="instance-select"></select>
+              </div>
+            </div>
+
+            <div class="launch-panel">
+              <button id="play" class="play-button">Jouer</button>
+              <div id="launch-state" class="launch-state hidden">
+                <strong id="launch-message">Preparation...</strong>
+                <progress id="launch-progress" max="1" value="0"></progress>
+                <pre id="launch-log"></pre>
+              </div>
+            </div>
+
+            <section class="news-section">
+              <div class="section-title">Actualites</div>
+              <div id="news-list" class="news-list"></div>
+            </section>
+          </section>
+
+          <section id="settings-view" class="content-view hidden">
+            <div class="section-title">Parametres</div>
+            <div class="settings-grid">
+              <label>
+                RAM minimum (Go)
+                <input id="memory-min" type="number" min="1" step="1">
+              </label>
+              <label>
+                RAM maximum (Go)
+                <input id="memory-max" type="number" min="1" step="1">
+              </label>
+              <label>
+                Largeur
+                <input id="screen-width" type="number" min="320" step="1">
+              </label>
+              <label>
+                Hauteur
+                <input id="screen-height" type="number" min="240" step="1">
+              </label>
+              <label>
+                Telechargements simultanes
+                <input id="download-multi" type="number" min="1" max="30" step="1">
+              </label>
+              <label>
+                Apres lancement
+                <select id="close-mode">
+                  <option value="minimize">Reduire le launcher</option>
+                  <option value="keep-open">Garder ouvert</option>
+                  <option value="close-with-game">Fermer le jeu avec le launcher</option>
+                </select>
+              </label>
+              <label class="wide">
+                Chemin Java personnalise
+                <input id="java-path" placeholder="Vide = Java embarque / detecte automatiquement">
+              </label>
+            </div>
+            <button id="save-settings" class="primary">Enregistrer</button>
+            <p id="settings-message" class="message"></p>
+          </section>
+
+          <section id="accounts-view" class="content-view hidden">
+            <div class="section-title">Comptes</div>
+            <div id="accounts-list" class="accounts-list"></div>
+            <button id="upload-skin" class="secondary">Changer le skin</button>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

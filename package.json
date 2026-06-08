@@ -1,0 +1,108 @@
+{
+  "name": "ys-launcher-v2",
+  "productName": "Y&S Launcher V2",
+  "version": "0.1.0",
+  "description": "Launcher Minecraft Y&S nouvelle generation",
+  "main": "src/main/main.js",
+  "author": {
+    "name": "Yahito",
+    "email": "contact@lapepterie.com",
+    "url": "https://lapepterie.com"
+  },
+  "homepage": "https://github.com/Yahiito/YS-Launcher-V2",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yahiito/YS-Launcher-V2.git"
+  },
+  "license": "CCANC",
+  "private": false,
+  "scripts": {
+    "start": "cross-env NODE_ENV=development electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "build": "electron-builder --publish never",
+    "release": "electron-builder --publish always"
+  },
+  "ysLauncher": {
+    "webBaseUrl": "https://lapepterie.com/Minecraft",
+    "launcherBaseUrl": "https://lapepterie.com/Minecraft/YS-Launcher"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.6.2",
+    "minecraft-java-core": "^4.2.3"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "fr.lapepterie.yslauncher.v2",
+    "productName": "Y&S Launcher V2",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "README.md"
+    ],
+    "asar": true,
+    "compression": "normal",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Yahiito",
+        "repo": "YS-Launcher-V2",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "icon": "src/renderer/assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
+    },
+    "mac": {
+      "icon": "src/renderer/assets/icon.icns",
+      "category": "public.app-category.games",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "sign": false
+    },
+    "linux": {
+      "icon": "src/renderer/assets/icon.png",
+      "category": "Game",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}
