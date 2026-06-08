@@ -113,19 +113,31 @@ async function fetchJson(url, options = {}) {
     }
     if (!response.ok) {
       const message = body?.message || body?.error || `Erreur HTTP ${response.status}`;
-      throw new Error(message);
+      throw new Error(`${message} (${url})`);
     }
     return body;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(`Delai depasse (${url})`);
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
 }
 
 async function loadRemoteState() {
+  const configUrl = `${launcherBaseUrl}/launcher/config-launcher/config.json`;
+  const newsUrl = `${launcherBaseUrl}/launcher/news-launcher/news.json`;
+  const instancesUrl = `${launcherBaseUrl}/files`;
   const [config, news, instancesObject] = await Promise.all([
-    fetchJson(`${launcherBaseUrl}/launcher/config-launcher/config.json`),
-    fetchJson(`${launcherBaseUrl}/launcher/news-launcher/news.json`).catch(() => []),
-    fetchJson(`${launcherBaseUrl}/files`)
+    fetchJson(configUrl).catch((error) => {
+      throw new Error(`Configuration indisponible: ${error.message}`);
+    }),
+    fetchJson(newsUrl).catch(() => []),
+    fetchJson(instancesUrl).catch((error) => {
+      throw new Error(`Instances indisponibles: ${error.message}`);
+    })
   ]);
 
   const instances = Object.values(instancesObject || {}).filter((item) => item && item.name);
