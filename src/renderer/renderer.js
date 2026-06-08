@@ -6,6 +6,7 @@ const state = {
   selectedAccountId: null,
   selectedInstance: null,
   settings: {},
+  warnings: [],
   webBaseUrl: "",
   launcherBaseUrl: ""
 };
@@ -32,6 +33,7 @@ const els = {
   launchLog: document.getElementById("launch-log"),
   updateStatus: document.getElementById("update-status"),
   accountsList: document.getElementById("accounts-list"),
+  warningBox: document.getElementById("warning-box"),
   settingsMessage: document.getElementById("settings-message")
 };
 
@@ -136,12 +138,19 @@ function renderAccounts() {
 }
 
 function renderAll() {
+  renderWarnings();
   renderProfile();
   renderInstances();
   renderNews();
   renderSettings();
   renderAccounts();
   refreshServerStatus();
+}
+
+function renderWarnings() {
+  const warnings = Array.isArray(state.warnings) ? state.warnings : [];
+  els.warningBox.classList.toggle("hidden", !warnings.length);
+  els.warningBox.textContent = warnings.join(" | ");
 }
 
 async function refreshServerStatus() {

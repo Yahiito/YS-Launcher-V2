@@ -269,6 +269,15 @@ nav {
   padding: 24px;
 }
 
+.warning-box {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  color: #ffdca8;
+  background: #2a2118;
+  border: 1px solid #6f4a24;
+  border-radius: 8px;
+}
+
 .content-view {
   display: grid;
   gap: 22px;

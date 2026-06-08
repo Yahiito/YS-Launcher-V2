@@ -19,16 +19,20 @@ jobs:
   build:
     name: Build ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.optional == true }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
             artifact: windows
+            optional: false
           - os: ubuntu-latest
             artifact: linux
+            optional: true
           - os: macos-latest
             artifact: macos
+            optional: false
 
     steps:
       - name: Checkout

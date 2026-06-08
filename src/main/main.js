@@ -21,7 +21,8 @@ let launchRunning = false;
 let lastRemoteState = {
   config: null,
   news: [],
-  instances: []
+  instances: [],
+  warnings: []
 };
 
 const defaultSettings = {
@@ -126,25 +127,104 @@ async function fetchJson(url, options = {}) {
   }
 }
 
+function getFallbackInstances(reason = null) {
+  const filesUrl = `${launcherBaseUrl}/files`;
+
+  return {
+    instances: [
+      {
+        name: "Minecraft",
+        url: `${filesUrl}?instance=Minecraft`,
+        loadder: {
+          minecraft_version: "1.21.11",
+          loadder_type: "forge",
+          loadder_version: "latest"
+        },
+        verify: false,
+        ignored: [
+          "config",
+          "essential",
+          "logs",
+          "resourcepacks",
+          "saves",
+          "screenshots",
+          "shaderpacks",
+          "W-OVERFLOW",
+          "options.txt",
+          "optionsof.txt"
+        ],
+        whitelist: [],
+        whitelistActive: false,
+        status: {
+          nameServer: "Hypixel",
+          ip: "mc.hypixel.net",
+          port: 25565
+        }
+      },
+      {
+        name: "MugiRP",
+        url: `${filesUrl}?instance=MugiRP`,
+        loadder: {
+          minecraft_version: "1.20.1",
+          loadder_type: "forge",
+          loadder_version: "latest"
+        },
+        verify: true,
+        ignored: [
+          "config",
+          "essential",
+          "logs",
+          "resourcepacks",
+          "saves",
+          "screenshots",
+          "shaderpacks",
+          "W-OVERFLOW",
+          "options.txt",
+          "optionsof.txt"
+        ],
+        whitelist: [],
+        whitelistActive: false,
+        status: {
+          nameServer: "MugiRP",
+          ip: "mcrpbready.ddns.net",
+          port: 25565
+        }
+      }
+    ],
+    warnings: []
+  };
+}
+
 async function loadRemoteState() {
   const configUrl = `${launcherBaseUrl}/launcher/config-launcher/config.json`;
   const newsUrl = `${launcherBaseUrl}/launcher/news-launcher/news.json`;
   const instancesUrl = `${launcherBaseUrl}/files`;
-  const [config, news, instancesObject] = await Promise.all([
+  const [config, news, instancesResult] = await Promise.all([
     fetchJson(configUrl).catch((error) => {
       throw new Error(`Configuration indisponible: ${error.message}`);
     }),
     fetchJson(newsUrl).catch(() => []),
     fetchJson(instancesUrl).catch((error) => {
-      throw new Error(`Instances indisponibles: ${error.message}`);
+      return getFallbackInstances(error.message);
     })
   ]);
 
-  const instances = Object.values(instancesObject || {}).filter((item) => item && item.name);
+  const fallbackWarnings = instancesResult?.warnings || [];
+  const instancesSource = Array.isArray(instancesResult?.instances)
+    ? instancesResult.instances
+    : Object.values(instancesResult || {});
+  let instances = instancesSource.filter((item) => item && item.name);
+  if (!instances.length) {
+    const fallback = getFallbackInstances("liste distante vide");
+    instances = fallback.instances;
+    fallbackWarnings.push(...fallback.warnings);
+  }
+
   lastRemoteState = {
     config,
     news: Array.isArray(news) ? news : [],
-    instances
+    instances,
+    warnings: fallbackWarnings
   };
   return lastRemoteState;
 }
