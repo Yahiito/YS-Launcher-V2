@@ -29,7 +29,7 @@ jobs:
             optional: false
           - os: ubuntu-latest
             artifact: linux
-            optional: true
+            optional: false
           - os: macos-latest
             artifact: macos
             optional: false
@@ -54,6 +54,7 @@ jobs:
             fakeroot \
             dpkg \
             xz-utils
+          sudo apt-get install -y --no-install-recommends libfuse2t64 || sudo apt-get install -y --no-install-recommends libfuse2
 
       - name: Install dependencies
         run: npm ci

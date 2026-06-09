@@ -388,6 +388,65 @@ progress {
   padding: 18px;
 }
 
+.skin-panel {
+  min-height: 430px;
+  display: grid;
+  grid-template-columns: minmax(300px, 420px) minmax(240px, 1fr);
+  align-items: center;
+  gap: 22px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 22px;
+}
+
+.skin-preview-wrap {
+  min-height: 390px;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(135deg, rgba(88, 180, 166, 0.12), transparent 45%),
+    #12161d;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.skin-viewer {
+  width: 260px;
+  height: 360px;
+  display: grid;
+  place-items: center;
+}
+
+.skin-viewer canvas {
+  width: 260px;
+  height: 360px;
+}
+
+.skin-empty {
+  width: 180px;
+  height: 260px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.skin-details {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 12px;
+}
+
+.skin-details h2 {
+  margin: 0;
+  font-size: 2rem;
+}
+
 .wide {
   grid-column: 1 / -1;
 }
@@ -423,7 +482,12 @@ progress {
   }
 
   .top-grid,
-  .settings-grid {
+  .settings-grid,
+  .skin-panel {
     grid-template-columns: 1fr;
+  }
+
+  .skin-details {
+    justify-items: stretch;
   }
 }

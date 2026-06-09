@@ -7,6 +7,7 @@ const state = {
   selectedInstance: null,
   settings: {},
   warnings: [],
+  systemMemoryMaxGb: 4,
   webBaseUrl: "",
   launcherBaseUrl: ""
 };
@@ -34,8 +35,15 @@ const els = {
   updateStatus: document.getElementById("update-status"),
   accountsList: document.getElementById("accounts-list"),
   warningBox: document.getElementById("warning-box"),
-  settingsMessage: document.getElementById("settings-message")
+  settingsMessage: document.getElementById("settings-message"),
+  skinViewer: document.getElementById("skin-viewer"),
+  skinAccountName: document.getElementById("skin-account-name"),
+  skinFilename: document.getElementById("skin-filename"),
+  skinMessage: document.getElementById("skin-message")
 };
+
+let skinViewerInstance = null;
+let skinRenderRequest = 0;
 
 function selectedAccount() {
   return state.accounts.find((account) => account.ID === state.selectedAccountId) || state.accounts[0] || null;
@@ -56,16 +64,36 @@ function setMessage(element, message, error = false) {
   element.style.color = error ? "var(--danger)" : "var(--muted)";
 }
 
+function memoryLimitGb() {
+  return Math.max(1, Number(state.systemMemoryMaxGb) || 4);
+}
+
+function clampMemoryValue(value, fallback = 1) {
+  const parsed = Number(value);
+  const safeValue = Number.isFinite(parsed) ? parsed : fallback;
+  return Math.min(memoryLimitGb(), Math.max(1, safeValue));
+}
+
 function renderProfile() {
   const account = selectedAccount();
   if (!account) {
     els.profileName.textContent = "Aucun compte";
     els.profileHead.style.backgroundImage = "";
+    els.profileHead.style.backgroundSize = "";
+    els.profileHead.style.backgroundPosition = "";
+    els.profileHead.style.backgroundRepeat = "";
     return;
   }
   els.profileName.textContent = account.name;
-  const skinUrl = `${state.webBaseUrl}/Images/Skins/textures/${encodeURIComponent(account.name)}.png?t=${Date.now()}`;
-  els.profileHead.style.backgroundImage = `url("${skinUrl}"), url("assets/icon.png")`;
+  const skinUrl = skinUrlFor(account);
+  els.profileHead.style.backgroundImage = `url("${skinUrl}"), url("${skinUrl}"), url("assets/icon.png")`;
+  els.profileHead.style.backgroundSize = "800% 800%, 800% 800%, cover";
+  els.profileHead.style.backgroundPosition = "-260px -52px, -52px -52px, center";
+  els.profileHead.style.backgroundRepeat = "no-repeat";
+}
+
+function skinUrlFor(account) {
+  return `${state.webBaseUrl}/Images/Skins/textures/${encodeURIComponent(account.name)}.png?t=${Date.now()}`;
 }
 
 function renderInstances() {
@@ -109,8 +137,16 @@ function renderNews() {
 }
 
 function renderSettings() {
-  document.getElementById("memory-min").value = state.settings.memoryMin ?? 2;
-  document.getElementById("memory-max").value = state.settings.memoryMax ?? 4;
+  const memoryLimit = memoryLimitGb();
+  const memoryMinInput = document.getElementById("memory-min");
+  const memoryMaxInput = document.getElementById("memory-max");
+  const memoryMin = clampMemoryValue(state.settings.memoryMin ?? 2, 2);
+  const memoryMax = Math.min(memoryLimit, Math.max(memoryMin, clampMemoryValue(state.settings.memoryMax ?? 4, 4)));
+  memoryMinInput.max = memoryLimit;
+  memoryMaxInput.max = memoryLimit;
+  memoryMaxInput.min = memoryMin;
+  memoryMinInput.value = memoryMin;
+  memoryMaxInput.value = memoryMax;
   document.getElementById("screen-width").value = state.settings.width ?? 854;
   document.getElementById("screen-height").value = state.settings.height ?? 480;
   document.getElementById("download-multi").value = state.settings.downloadMulti ?? 5;
@@ -137,6 +173,85 @@ function renderAccounts() {
   }
 }
 
+async function renderSkinPreview() {
+  const requestId = ++skinRenderRequest;
+  const account = selectedAccount();
+
+  if (skinViewerInstance?.dispose) {
+    skinViewerInstance.dispose();
+    skinViewerInstance = null;
+  }
+
+  els.skinViewer.innerHTML = "";
+  setMessage(els.skinMessage, "");
+
+  if (!account) {
+    els.skinAccountName.textContent = "Aucun compte";
+    els.skinFilename.textContent = "Connecte un compte pour afficher son skin.";
+    els.skinViewer.innerHTML = `<div class="skin-empty">Aucun skin</div>`;
+    return;
+  }
+
+  els.skinAccountName.textContent = account.name;
+  els.skinFilename.textContent = `${account.name}.png`;
+
+  if (!window.skinview3d) {
+    els.skinViewer.innerHTML = `<div class="skin-empty">Apercu 3D indisponible</div>`;
+    setMessage(els.skinMessage, "Le moteur 3D du skin n'a pas pu etre charge.", true);
+    return;
+  }
+
+  const remoteSkinUrl = skinUrlFor(account);
+  const fallbackSkinUrl = "assets/images/skin/steve.png";
+  const skinUrl = await imageExists(remoteSkinUrl).then(
+    () => remoteSkinUrl,
+    () => fallbackSkinUrl
+  );
+
+  if (requestId !== skinRenderRequest) return;
+  if (skinUrl === fallbackSkinUrl) {
+    els.skinFilename.textContent = "Steve.png";
+    setMessage(els.skinMessage, "Aucun skin distant trouve pour ce compte.");
+  }
+
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 260;
+    canvas.height = 360;
+    skinViewerInstance = new skinview3d.SkinViewer({
+      canvas,
+      width: 260,
+      height: 360,
+      skin: skinUrl
+    });
+
+    skinViewerInstance.controls.enableRotate = true;
+    skinViewerInstance.autoRotate = true;
+    skinViewerInstance.autoRotateSpeed = 0.55;
+
+    if (skinViewerInstance.animations && typeof skinViewerInstance.animations.add === "function") {
+      skinViewerInstance.animations.add(new skinview3d.WalkingAnimation());
+      skinViewerInstance.animations.play();
+    } else if (typeof skinview3d.WalkingAnimation === "function") {
+      skinViewerInstance.animation = new skinview3d.WalkingAnimation();
+    }
+
+    els.skinViewer.appendChild(canvas);
+  } catch (error) {
+    els.skinViewer.innerHTML = `<div class="skin-empty">Erreur 3D</div>`;
+    setMessage(els.skinMessage, error.message || "Impossible d'afficher le skin.", true);
+  }
+}
+
+function imageExists(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = resolve;
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 function renderAll() {
   renderWarnings();
   renderProfile();
@@ -144,6 +259,7 @@ function renderAll() {
   renderNews();
   renderSettings();
   renderAccounts();
+  renderSkinPreview();
   refreshServerStatus();
 }
 
@@ -267,10 +383,29 @@ function bindEvents() {
     }
   });
 
+  document.getElementById("memory-min").addEventListener("change", () => {
+    const memoryMinInput = document.getElementById("memory-min");
+    const memoryMaxInput = document.getElementById("memory-max");
+    const memoryMin = clampMemoryValue(memoryMinInput.value, 2);
+    const memoryMax = Math.min(memoryLimitGb(), Math.max(memoryMin, clampMemoryValue(memoryMaxInput.value, 4)));
+    memoryMinInput.value = memoryMin;
+    memoryMaxInput.min = memoryMin;
+    memoryMaxInput.value = memoryMax;
+  });
+
+  document.getElementById("memory-max").addEventListener("change", () => {
+    const memoryMin = clampMemoryValue(document.getElementById("memory-min").value, 2);
+    const memoryMaxInput = document.getElementById("memory-max");
+    memoryMaxInput.value = Math.min(memoryLimitGb(), Math.max(memoryMin, clampMemoryValue(memoryMaxInput.value, 4)));
+  });
+
   document.getElementById("save-settings").addEventListener("click", async () => {
+    const memoryLimit = memoryLimitGb();
+    const memoryMin = clampMemoryValue(document.getElementById("memory-min").value, 2);
+    const memoryMax = Math.min(memoryLimit, Math.max(memoryMin, clampMemoryValue(document.getElementById("memory-max").value, 4)));
     const settings = {
-      memoryMin: Number(document.getElementById("memory-min").value),
-      memoryMax: Number(document.getElementById("memory-max").value),
+      memoryMin,
+      memoryMax,
       width: Number(document.getElementById("screen-width").value),
       height: Number(document.getElementById("screen-height").value),
       downloadMulti: Number(document.getElementById("download-multi").value),
@@ -279,7 +414,7 @@ function bindEvents() {
     };
     state.settings = await window.ys.saveSettings(settings);
     renderSettings();
-    setMessage(els.settingsMessage, "Parametres enregistres.");
+    setMessage(els.settingsMessage, `Parametres enregistres. RAM maximum detectee : ${memoryLimit} Go.`);
   });
 
   els.accountsList.addEventListener("click", async (event) => {
@@ -300,12 +435,18 @@ function bindEvents() {
   });
 
   document.getElementById("upload-skin").addEventListener("click", async () => {
+    setMessage(els.skinMessage, "Selection du fichier...");
     try {
-      await window.ys.uploadSkin();
+      const uploadResult = await window.ys.uploadSkin();
+      if (uploadResult?.canceled) {
+        setMessage(els.skinMessage, "Changement de skin annule.");
+        return;
+      }
       const next = await window.ys.getState();
       applyState(next);
+      setMessage(els.skinMessage, "Skin mis a jour.");
     } catch (error) {
-      alert(error.message);
+      setMessage(els.skinMessage, error.message, true);
     }
   });
 }

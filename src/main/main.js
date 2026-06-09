@@ -3,6 +3,7 @@ const { autoUpdater } = require("electron-updater");
 const Store = require("electron-store");
 const { Launch, Status } = require("minecraft-java-core");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const pkg = require("../../package.json");
 
@@ -37,17 +38,27 @@ const defaultSettings = {
   gameDirectoryName: "YS-Launcher"
 };
 
-function getSettings() {
-  return { ...defaultSettings, ...(store.get("settings") || {}) };
+function getSystemMemoryMaxGb() {
+  return Math.max(1, Math.floor(os.totalmem() / 1024 / 1024 / 1024));
 }
 
-function saveSettings(settings) {
-  const next = { ...getSettings(), ...settings };
-  next.memoryMin = Math.max(1, Number(next.memoryMin) || defaultSettings.memoryMin);
-  next.memoryMax = Math.max(next.memoryMin, Number(next.memoryMax) || defaultSettings.memoryMax);
+function normalizeSettings(settings) {
+  const memoryLimit = getSystemMemoryMaxGb();
+  const next = { ...defaultSettings, ...(settings || {}) };
+  next.memoryMin = Math.min(memoryLimit, Math.max(1, Number(next.memoryMin) || defaultSettings.memoryMin));
+  next.memoryMax = Math.min(memoryLimit, Math.max(next.memoryMin, Number(next.memoryMax) || defaultSettings.memoryMax));
   next.width = Math.max(320, Number(next.width) || defaultSettings.width);
   next.height = Math.max(240, Number(next.height) || defaultSettings.height);
   next.downloadMulti = Math.min(30, Math.max(1, Number(next.downloadMulti) || defaultSettings.downloadMulti));
+  return next;
+}
+
+function getSettings() {
+  return normalizeSettings(store.get("settings"));
+}
+
+function saveSettings(settings) {
+  const next = normalizeSettings({ ...getSettings(), ...settings });
   store.set("settings", next);
   return next;
 }
@@ -86,6 +97,12 @@ function createWindow() {
   });
 
   Menu.setApplicationMenu(null);
+  mainWindow.on("close", (event) => {
+    if (launchRunning && getSettings().closeMode === "hide-until-game-close") {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
   mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
@@ -415,15 +432,18 @@ async function launchGame() {
     sendGame("data", "Demarrage de Minecraft...", { line: String(line || "") });
     if (settings.closeMode === "minimize" && mainWindow && !mainWindow.isMinimized()) {
       mainWindow.minimize();
+    } else if (settings.closeMode === "hide-until-game-close" && mainWindow && mainWindow.isVisible()) {
+      mainWindow.hide();
     }
   });
 
   launch.on("close", () => {
     launchRunning = false;
     sendGame("close", "Minecraft est ferme.");
-    if (settings.closeMode === "minimize" && mainWindow) {
+    if ((settings.closeMode === "minimize" || settings.closeMode === "hide-until-game-close") && mainWindow) {
       mainWindow.restore();
       mainWindow.show();
+      mainWindow.focus();
     }
   });
 
@@ -431,6 +451,11 @@ async function launchGame() {
     launchRunning = false;
     const message = error?.error?.message || error?.error || error?.message || "Erreur inconnue.";
     sendGame("error", message);
+    if ((settings.closeMode === "minimize" || settings.closeMode === "hide-until-game-close") && mainWindow) {
+      mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
   });
 
   sendGame("prepare", "Lecture des manifests et verification des fichiers...", { indeterminate: true });
@@ -480,6 +505,7 @@ function setupIpc() {
       selectedAccountId: store.get("selectedAccountId") || null,
       selectedInstance: selected,
       settings: getSettings(),
+      systemMemoryMaxGb: getSystemMemoryMaxGb(),
       webBaseUrl,
       launcherBaseUrl,
       isDev
@@ -493,7 +519,8 @@ function setupIpc() {
       accounts: getAccounts(),
       selectedAccountId: store.get("selectedAccountId") || null,
       selectedInstance: getSelectedInstance(),
-      settings: getSettings()
+      settings: getSettings(),
+      systemMemoryMaxGb: getSystemMemoryMaxGb()
     };
   });
 

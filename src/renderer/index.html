@@ -73,6 +73,7 @@
           <nav>
             <button class="nav active" data-view="home">Accueil</button>
             <button class="nav" data-view="settings">Parametres</button>
+            <button class="nav" data-view="skin">Skin</button>
             <button class="nav" data-view="accounts">Comptes</button>
           </nav>
 
@@ -144,6 +145,7 @@
                 Apres lancement
                 <select id="close-mode">
                   <option value="minimize">Reduire le launcher</option>
+                  <option value="hide-until-game-close">Fermer le launcher puis le rouvrir</option>
                   <option value="keep-open">Garder ouvert</option>
                   <option value="close-with-game">Fermer le jeu avec le launcher</option>
                 </select>
@@ -157,15 +159,31 @@
             <p id="settings-message" class="message"></p>
           </section>
 
+          <section id="skin-view" class="content-view hidden">
+            <div class="section-title">Skin</div>
+            <div class="skin-panel">
+              <div class="skin-preview-wrap">
+                <div id="skin-viewer" class="skin-viewer"></div>
+              </div>
+              <div class="skin-details">
+                <div class="tiny-label">Compte actif</div>
+                <h2 id="skin-account-name">Aucun compte</h2>
+                <p id="skin-filename" class="message">Aucun skin charge</p>
+                <button id="upload-skin" class="primary">Changer le skin</button>
+                <p id="skin-message" class="message"></p>
+              </div>
+            </div>
+          </section>
+
           <section id="accounts-view" class="content-view hidden">
             <div class="section-title">Comptes</div>
             <div id="accounts-list" class="accounts-list"></div>
-            <button id="upload-skin" class="secondary">Changer le skin</button>
           </section>
         </section>
       </section>
     </main>
 
+    <script src="assets/js/skinview3d.bundle.js"></script>
     <script src="renderer.js"></script>
   </body>
 </html>
