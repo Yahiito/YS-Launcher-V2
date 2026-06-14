@@ -327,6 +327,15 @@ function getGameRoot(config, settings) {
   return path.join(app.getPath("appData"), folderName);
 }
 
+function clearCachedSkins(gameRoot) {
+  const root = path.resolve(gameRoot);
+  const skinsPath = path.resolve(root, "assets", "skins");
+  if (!skinsPath.startsWith(root + path.sep)) {
+    throw new Error("Chemin de cache skins invalide.");
+  }
+  fs.rmSync(skinsPath, { recursive: true, force: true });
+}
+
 function normalizeLoader(loader) {
   const type = String(loader?.loadder_type || loader?.loader_type || "none").toLowerCase();
   if (["none", "vanilla", "default"].includes(type)) {
@@ -390,6 +399,8 @@ async function launchGame() {
   await loadRemoteState();
 
   const { instance, options } = buildLaunchOptions();
+  clearCachedSkins(options.path);
+
   const launch = new Launch();
   const settings = getSettings();
   launchRunning = true;
