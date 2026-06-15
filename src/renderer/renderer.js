@@ -152,6 +152,9 @@ function renderSettings() {
   document.getElementById("download-multi").value = state.settings.downloadMulti ?? 5;
   document.getElementById("close-mode").value = state.settings.closeMode ?? "minimize";
   document.getElementById("java-path").value = state.settings.javaPath ?? "";
+  document.getElementById("jvm-args").value = Array.isArray(state.settings.jvmArgs)
+    ? state.settings.jvmArgs.join("\n")
+    : state.settings.jvmArgs ?? "";
 }
 
 function renderAccounts() {
@@ -410,7 +413,8 @@ function bindEvents() {
       height: Number(document.getElementById("screen-height").value),
       downloadMulti: Number(document.getElementById("download-multi").value),
       closeMode: document.getElementById("close-mode").value,
-      javaPath: document.getElementById("java-path").value.trim() || null
+      javaPath: document.getElementById("java-path").value.trim() || null,
+      jvmArgs: document.getElementById("jvm-args").value
     };
     state.settings = await window.ys.saveSettings(settings);
     renderSettings();

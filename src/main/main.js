@@ -33,10 +33,21 @@ const defaultSettings = {
   width: 854,
   height: 480,
   javaPath: null,
+  jvmArgs: [],
   downloadMulti: 5,
   closeMode: "minimize",
   gameDirectoryName: "YS-Launcher"
 };
+
+function normalizeArgumentList(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value.split(/\r\n|\r|\n/).map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+}
 
 function getSystemMemoryMaxGb() {
   return Math.max(1, Math.floor(os.totalmem() / 1024 / 1024 / 1024));
@@ -50,6 +61,7 @@ function normalizeSettings(settings) {
   next.width = Math.max(320, Number(next.width) || defaultSettings.width);
   next.height = Math.max(240, Number(next.height) || defaultSettings.height);
   next.downloadMulti = Math.min(30, Math.max(1, Number(next.downloadMulti) || defaultSettings.downloadMulti));
+  next.jvmArgs = normalizeArgumentList(next.jvmArgs);
   return next;
 }
 
@@ -361,6 +373,8 @@ function buildLaunchOptions() {
 
   const loader = normalizeLoader(instance.loadder || instance.loader);
   const gameRoot = getGameRoot(config, settings);
+  const instanceJvmArgs = normalizeArgumentList(instance.jvm_args || instance.JVM_ARGS);
+  const settingsJvmArgs = normalizeArgumentList(settings.jvmArgs);
 
   return {
     instance,
@@ -380,7 +394,7 @@ function buildLaunchOptions() {
       java: {
         path: settings.javaPath || null
       },
-      JVM_ARGS: Array.isArray(instance.jvm_args) ? instance.jvm_args : [],
+      JVM_ARGS: [...instanceJvmArgs, ...settingsJvmArgs],
       GAME_ARGS: Array.isArray(instance.game_args) ? instance.game_args : [],
       screen: {
         width: settings.width,
