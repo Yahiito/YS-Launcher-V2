@@ -12,8 +12,11 @@ const state = {
   launcherBaseUrl: ""
 };
 
+const AUTO_REFRESH_INTERVAL_MS = 15000;
+
 const els = {
   app: document.getElementById("app"),
+  content: document.querySelector(".content"),
   loadingView: document.querySelector(".loading-view"),
   loginView: document.querySelector(".login-view"),
   launcherView: document.querySelector(".launcher-view"),
@@ -44,6 +47,7 @@ const els = {
 
 let skinViewerInstance = null;
 let skinRenderRequest = 0;
+let refreshInProgress = false;
 
 function selectedAccount() {
   return state.accounts.find((account) => account.ID === state.selectedAccountId) || state.accounts[0] || null;
@@ -51,6 +55,23 @@ function selectedAccount() {
 
 function selectedInstance() {
   return state.instances.find((instance) => instance.name === state.selectedInstance) || state.instances[0] || null;
+}
+
+function backgroundUrlFor(instance) {
+  return instance?.background || instance?.background_image || "";
+}
+
+function applyInstanceBackground() {
+  const backgroundUrl = backgroundUrlFor(selectedInstance());
+  if (!backgroundUrl) {
+    els.content.style.removeProperty("--instance-background-image");
+    els.content.classList.remove("has-instance-background");
+    return;
+  }
+
+  const escapedUrl = String(backgroundUrl).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+  els.content.style.setProperty("--instance-background-image", `url("${escapedUrl}")`);
+  els.content.classList.add("has-instance-background");
 }
 
 function showMode(mode) {
@@ -115,6 +136,8 @@ function renderInstances() {
   if (!visibleInstances.some((instance) => instance.name === state.selectedInstance)) {
     state.selectedInstance = visibleInstances[0]?.name || null;
   }
+
+  applyInstanceBackground();
 }
 
 function renderNews() {
@@ -255,14 +278,17 @@ function imageExists(url) {
   });
 }
 
-function renderAll() {
+function renderAll(options = {}) {
+  const refreshSkin = options.refreshSkin ?? true;
+  const refreshSettings = options.refreshSettings ?? true;
+
   renderWarnings();
   renderProfile();
   renderInstances();
   renderNews();
-  renderSettings();
+  if (refreshSettings) renderSettings();
   renderAccounts();
-  renderSkinPreview();
+  if (refreshSkin) renderSkinPreview();
   refreshServerStatus();
 }
 
@@ -288,11 +314,63 @@ async function refreshServerStatus() {
   els.players.textContent = String(status.players || 0);
 }
 
-function applyState(next) {
+function applyState(next, options = {}) {
   Object.assign(state, next);
   if (!state.selectedAccountId && state.accounts[0]) state.selectedAccountId = state.accounts[0].ID;
   showMode(state.accounts.length ? "launcher" : "login");
-  renderAll();
+  renderAll(options);
+}
+
+async function refreshLauncherState(options = {}) {
+  if (refreshInProgress) return;
+
+  const silent = options.silent ?? false;
+  const previousInstance = state.selectedInstance;
+  refreshInProgress = true;
+
+  if (!silent) {
+    els.updateStatus.textContent = "Actualisation du launcher...";
+  }
+
+  try {
+    const next = await window.ys.getState();
+    applyState(next, {
+      refreshSkin: options.refreshSkin ?? false,
+      refreshSettings: options.refreshSettings ?? false
+    });
+
+    if (state.selectedInstance && state.selectedInstance !== previousInstance) {
+      await window.ys.selectInstance(state.selectedInstance);
+    }
+
+    if (!silent) {
+      els.updateStatus.textContent = "Launcher actualise.";
+    }
+  } catch (error) {
+    if (!silent) {
+      els.updateStatus.textContent = error.message || "Actualisation impossible.";
+    }
+  } finally {
+    refreshInProgress = false;
+  }
+}
+
+function startAutoRefresh() {
+  setInterval(() => {
+    if (document.visibilityState === "visible") {
+      refreshLauncherState({ silent: true });
+    }
+  }, AUTO_REFRESH_INTERVAL_MS);
+
+  window.addEventListener("focus", () => {
+    refreshLauncherState({ silent: true });
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      refreshLauncherState({ silent: true });
+    }
+  });
 }
 
 async function boot() {
@@ -302,6 +380,7 @@ async function boot() {
   try {
     const initial = await window.ys.appReady();
     applyState(initial);
+    startAutoRefresh();
   } catch (error) {
     showMode("login");
     setMessage(els.authMessage, error.message || "Impossible de charger le launcher.", true);
@@ -312,6 +391,14 @@ function bindEvents() {
   document.getElementById("minimize").addEventListener("click", () => window.ys.minimize());
   document.getElementById("maximize").addEventListener("click", () => window.ys.maximize());
   document.getElementById("close").addEventListener("click", () => window.ys.close());
+
+  document.addEventListener("keydown", (event) => {
+    const key = event.key.toLowerCase();
+    if (event.key === "F5" || (event.ctrlKey && key === "r")) {
+      event.preventDefault();
+      refreshLauncherState({ silent: false, refreshSkin: true, refreshSettings: true });
+    }
+  });
 
   document.querySelectorAll("[data-auth-tab]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -370,6 +457,7 @@ function bindEvents() {
   els.instanceSelect.addEventListener("change", async () => {
     state.selectedInstance = els.instanceSelect.value;
     await window.ys.selectInstance(state.selectedInstance);
+    applyInstanceBackground();
     refreshServerStatus();
   });
 
