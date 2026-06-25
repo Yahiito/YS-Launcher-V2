@@ -7,6 +7,8 @@ const state = {
   selectedInstance: null,
   settings: {},
   warnings: [],
+  whitelistRequests: [],
+  adminWhitelistRequests: [],
   systemMemoryMaxGb: 4,
   webBaseUrl: "",
   launcherBaseUrl: ""
@@ -36,6 +38,10 @@ const els = {
   launchProgress: document.getElementById("launch-progress"),
   launchLog: document.getElementById("launch-log"),
   updateStatus: document.getElementById("update-status"),
+  instancesList: document.getElementById("instances-list"),
+  instancesMessage: document.getElementById("instances-message"),
+  adminRequestsList: document.getElementById("admin-requests-list"),
+  adminMessage: document.getElementById("admin-message"),
   accountsList: document.getElementById("accounts-list"),
   warningBox: document.getElementById("warning-box"),
   settingsMessage: document.getElementById("settings-message"),
@@ -55,6 +61,19 @@ function selectedAccount() {
 
 function selectedInstance() {
   return state.instances.find((instance) => instance.name === state.selectedInstance) || state.instances[0] || null;
+}
+
+function isAdminAccount(account = selectedAccount()) {
+  return String(account?.role || "").toLowerCase() === "admin";
+}
+
+function isInstanceWhitelisted(instance, account = selectedAccount()) {
+  if (!instance?.whitelistActive) return true;
+  return Array.isArray(instance.whitelist) && instance.whitelist.includes(account?.name);
+}
+
+function isWhitelistRequestPending(instance) {
+  return Array.isArray(state.whitelistRequests) && state.whitelistRequests.includes(instance?.name);
 }
 
 function backgroundUrlFor(instance) {
@@ -114,16 +133,17 @@ function renderProfile() {
 }
 
 function skinUrlFor(account) {
-  return `${state.webBaseUrl}/Images/Skins/textures/${encodeURIComponent(account.name)}.png?t=${Date.now()}`;
+  return skinUrlForName(account.name);
+}
+
+function skinUrlForName(name) {
+  return `${state.webBaseUrl}/Images/Skins/textures/${encodeURIComponent(name)}.png?t=${Date.now()}`;
 }
 
 function renderInstances() {
   const account = selectedAccount();
   els.instanceSelect.innerHTML = "";
-  const visibleInstances = state.instances.filter((instance) => {
-    if (!instance.whitelistActive) return true;
-    return Array.isArray(instance.whitelist) && instance.whitelist.includes(account?.name);
-  });
+  const visibleInstances = state.instances.filter((instance) => isInstanceWhitelisted(instance, account));
 
   for (const instance of visibleInstances) {
     const option = document.createElement("option");
@@ -137,7 +157,120 @@ function renderInstances() {
     state.selectedInstance = visibleInstances[0]?.name || null;
   }
 
+  if (state.selectedInstance) {
+    els.instanceSelect.value = state.selectedInstance;
+  } else {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Aucune instance accessible";
+    els.instanceSelect.appendChild(option);
+  }
+
+  els.play.disabled = !state.selectedInstance;
   applyInstanceBackground();
+}
+
+function renderInstanceDirectory() {
+  const account = selectedAccount();
+  els.instancesList.innerHTML = "";
+
+  if (!state.instances.length) {
+    els.instancesList.innerHTML = `<div class="instance-directory-card">Aucune instance disponible.</div>`;
+    return;
+  }
+
+  for (const instance of state.instances) {
+    const locked = Boolean(instance.whitelistActive);
+    const allowed = isInstanceWhitelisted(instance, account);
+    const pending = locked && !allowed && isWhitelistRequestPending(instance);
+    const selected = instance.name === state.selectedInstance;
+    const background = backgroundUrlFor(instance);
+    const version = instance.loadder?.minecraft_version || instance.loader?.minecraft_version || "Version inconnue";
+    const loader = instance.loadder?.loadder_type || instance.loader?.loader_type || "none";
+    const statusName = instance.status?.nameServer || instance.name;
+    const card = document.createElement("article");
+    card.className = `instance-directory-card${selected ? " selected" : ""}`;
+    if (background) {
+      card.style.setProperty("--card-background-image", `url("${String(background).replaceAll("\\", "\\\\").replaceAll('"', '\\"')}")`);
+    }
+
+    let action = "";
+    if (allowed) {
+      action = `<button class="secondary" data-instance-select="${escapeHtml(instance.name)}">${selected ? "Selectionnee" : "Selectionner"}</button>`;
+    } else if (pending) {
+      action = `<button class="secondary" disabled>Demande envoyee</button>`;
+    } else {
+      action = `<button class="primary" data-instance-request="${escapeHtml(instance.name)}">Demander a rejoindre</button>`;
+    }
+
+    card.innerHTML = `
+      <div class="instance-directory-bg"></div>
+      <div class="instance-directory-content">
+        <div class="instance-directory-top">
+          <span class="instance-badge ${locked ? "locked" : "open"}">${locked ? "Whitelist" : "Ouverte"}</span>
+          <span class="instance-badge">${escapeHtml(version)}</span>
+        </div>
+        <div>
+          <h2>${escapeHtml(instance.name)}</h2>
+          <p>${escapeHtml(statusName)} · ${escapeHtml(loader)}</p>
+        </div>
+        <div class="instance-directory-footer">
+          <span class="message">${allowed ? "Acces disponible" : pending ? "En attente admin" : "Acces a demander"}</span>
+          ${action}
+        </div>
+      </div>
+    `;
+    els.instancesList.appendChild(card);
+  }
+}
+
+function renderAdminAccess() {
+  const isAdmin = isAdminAccount();
+  document.querySelectorAll("[data-admin-nav]").forEach((button) => {
+    button.classList.toggle("hidden", !isAdmin);
+  });
+
+  const adminView = document.getElementById("admin-view");
+  if (!isAdmin && adminView && !adminView.classList.contains("hidden")) {
+    document.querySelector('[data-view="home"]')?.click();
+  }
+}
+
+function renderAdminRequests() {
+  renderAdminAccess();
+  els.adminRequestsList.innerHTML = "";
+
+  if (!isAdminAccount()) {
+    els.adminRequestsList.innerHTML = `<div class="admin-request-card">Reserve aux admins.</div>`;
+    return;
+  }
+
+  if (!state.adminWhitelistRequests.length) {
+    els.adminRequestsList.innerHTML = `<div class="admin-request-card">Aucune demande en attente.</div>`;
+    return;
+  }
+
+  for (const request of state.adminWhitelistRequests) {
+    const playerName = request.player_name || request.username || "Joueur";
+    const serverName = request.server_name || "Instance";
+    const skinUrl = skinUrlForName(playerName);
+    const card = document.createElement("article");
+    card.className = "admin-request-card";
+    card.innerHTML = `
+      <div class="admin-request-player">
+        <div class="admin-request-head" style="--skin-url: url('${escapeHtml(skinUrl)}')"></div>
+        <div>
+          <strong>${escapeHtml(playerName)}</strong>
+          <p>${escapeHtml(playerName)} veut rejoindre l'instance ${escapeHtml(serverName)}</p>
+        </div>
+      </div>
+      <div class="admin-request-actions">
+        <button class="icon-action accept" title="Accepter" data-admin-request="${Number(request.id)}" data-admin-accept="true">&#10003;</button>
+        <button class="icon-action reject" title="Refuser" data-admin-request="${Number(request.id)}" data-admin-accept="false">&#10005;</button>
+      </div>
+    `;
+    els.adminRequestsList.appendChild(card);
+  }
 }
 
 function renderNews() {
@@ -284,7 +417,10 @@ function renderAll(options = {}) {
 
   renderWarnings();
   renderProfile();
+  renderAdminAccess();
   renderInstances();
+  renderInstanceDirectory();
+  renderAdminRequests();
   renderNews();
   if (refreshSettings) renderSettings();
   renderAccounts();
@@ -457,17 +593,77 @@ function bindEvents() {
   els.instanceSelect.addEventListener("change", async () => {
     state.selectedInstance = els.instanceSelect.value;
     await window.ys.selectInstance(state.selectedInstance);
+    renderInstanceDirectory();
     applyInstanceBackground();
     refreshServerStatus();
   });
 
+  els.instancesList.addEventListener("click", async (event) => {
+    const selectName = event.target.dataset.instanceSelect;
+    const requestName = event.target.dataset.instanceRequest;
+
+    if (selectName) {
+      state.selectedInstance = selectName;
+      await window.ys.selectInstance(selectName);
+      renderInstances();
+      renderInstanceDirectory();
+      applyInstanceBackground();
+      refreshServerStatus();
+      setMessage(els.instancesMessage, `${selectName} est selectionnee.`);
+      return;
+    }
+
+    if (requestName) {
+      event.target.disabled = true;
+      setMessage(els.instancesMessage, "Envoi de la demande...");
+      try {
+        const result = await window.ys.requestWhitelist(requestName);
+        if (result?.status === "pending" && !state.whitelistRequests.includes(requestName)) {
+          state.whitelistRequests.push(requestName);
+        }
+        renderInstanceDirectory();
+        setMessage(els.instancesMessage, result?.message || "Demande envoyee.");
+        refreshLauncherState({ silent: true, refreshSkin: false, refreshSettings: false });
+      } catch (error) {
+        event.target.disabled = false;
+        setMessage(els.instancesMessage, error.message || "Demande impossible.", true);
+      }
+    }
+  });
+
+  els.adminRequestsList.addEventListener("click", async (event) => {
+    const requestId = event.target.dataset.adminRequest;
+    if (!requestId) return;
+
+    const accept = event.target.dataset.adminAccept === "true";
+    event.target.disabled = true;
+    setMessage(els.adminMessage, accept ? "Acceptation en cours..." : "Refus en cours...");
+
+    try {
+      const result = await window.ys.resolveWhitelistRequest({ requestId: Number(requestId), accept });
+      state.adminWhitelistRequests = state.adminWhitelistRequests.filter((request) => Number(request.id) !== Number(requestId));
+      renderAdminRequests();
+      setMessage(els.adminMessage, result?.message || "Demande traitee.");
+      refreshLauncherState({ silent: true, refreshSkin: false, refreshSettings: false });
+    } catch (error) {
+      event.target.disabled = false;
+      setMessage(els.adminMessage, error.message || "Action impossible.", true);
+    }
+  });
+
   els.play.addEventListener("click", async () => {
+    if (!state.selectedInstance) {
+      handleLaunchEvent({ type: "error", message: "Aucune instance accessible." });
+      return;
+    }
+
     els.play.disabled = true;
     els.launchState.classList.remove("hidden");
     els.launchLog.textContent = "";
     els.launchMessage.textContent = "Preparation...";
     els.launchProgress.removeAttribute("value");
     try {
+      await window.ys.selectInstance(state.selectedInstance);
       await window.ys.launch();
     } catch (error) {
       handleLaunchEvent({ type: "error", message: error.message });

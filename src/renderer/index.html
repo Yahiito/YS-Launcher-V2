@@ -72,6 +72,8 @@
 
           <nav>
             <button class="nav active" data-view="home">Accueil</button>
+            <button class="nav" data-view="instances">Instances</button>
+            <button class="nav hidden" data-view="admin" data-admin-nav>Demandes</button>
             <button class="nav" data-view="settings">Parametres</button>
             <button class="nav" data-view="skin">Skin</button>
             <button class="nav" data-view="accounts">Comptes</button>
@@ -116,6 +118,18 @@
               <div class="section-title">Actualites</div>
               <div id="news-list" class="news-list"></div>
             </section>
+          </section>
+
+          <section id="instances-view" class="content-view hidden">
+            <div class="section-title">Instances</div>
+            <div id="instances-message" class="message"></div>
+            <div id="instances-list" class="instances-list"></div>
+          </section>
+
+          <section id="admin-view" class="content-view hidden">
+            <div class="section-title">Demandes whitelist</div>
+            <div id="admin-message" class="message"></div>
+            <div id="admin-requests-list" class="admin-requests-list"></div>
           </section>
 
           <section id="settings-view" class="content-view hidden">

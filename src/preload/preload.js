@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld("ys", {
   selectAccount: (id) => ipcRenderer.invoke("accounts:select", id),
   deleteAccount: (id) => ipcRenderer.invoke("accounts:delete", id),
   selectInstance: (name) => ipcRenderer.invoke("instances:select", name),
+  requestWhitelist: (name) => ipcRenderer.invoke("whitelist:request", name),
+  resolveWhitelistRequest: (payload) => ipcRenderer.invoke("admin:whitelist:resolve", payload),
   getServerStatus: (status) => ipcRenderer.invoke("server:status", status),
   uploadSkin: (filePath) => ipcRenderer.invoke("skin:upload", filePath),
   launch: () => ipcRenderer.invoke("game:launch"),

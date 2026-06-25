@@ -277,6 +277,7 @@ function normalizeAccount(data, credentials = {}) {
       : JSON.stringify(data?.user_properties || {}),
     email: data?.email || null,
     skin: data?.skin || null,
+    role: data?.role || data?.Role || null,
     meta: {
       online: false,
       type: "Mojang",
@@ -370,6 +371,9 @@ function buildLaunchOptions() {
   if (!account) throw new Error("Aucun compte connecte.");
   if (!instance) throw new Error("Aucune instance selectionnee.");
   if (!config) throw new Error("Configuration launcher indisponible.");
+  if (instance.whitelistActive && !(Array.isArray(instance.whitelist) && instance.whitelist.includes(account.name))) {
+    throw new Error("Tu n'as pas encore acces a cette instance.");
+  }
 
   const loader = normalizeLoader(instance.loadder || instance.loader);
   const gameRoot = getGameRoot(config, settings);
@@ -520,16 +524,122 @@ async function uploadSkin(filePath) {
   return data;
 }
 
+function accountCredentials(account) {
+  if (!account) throw new Error("Aucun compte connecte.");
+  if (!account.password) throw new Error("Reconnecte-toi pour envoyer une demande whitelist.");
+
+  return {
+    username: account.username || account.name,
+    password: account.password
+  };
+}
+
+async function loadWhitelistStatus(account = getSelectedAccount()) {
+  if (!account?.password) return { pending: [], role: account?.role || null };
+
+  try {
+    const data = await fetchJson(`${webBaseUrl}/request_whitelist.php`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=UTF-8" },
+      body: JSON.stringify({
+        action: "status",
+        ...accountCredentials(account)
+      })
+    });
+
+    return {
+      pending: Array.isArray(data.pending) ? data.pending : [],
+      role: data.role || account.role || null
+    };
+  } catch {
+    return { pending: [], role: account?.role || null };
+  }
+}
+
+function updateSelectedAccountRole(role) {
+  if (!role) return;
+  const account = getSelectedAccount();
+  if (!account || account.role === role) return;
+  saveAccount({ ...account, role });
+}
+
+async function loadAdminWhitelistRequests(account = getSelectedAccount()) {
+  if (!account?.password) return [];
+
+  try {
+    const data = await fetchJson(`${webBaseUrl}/request_whitelist.php`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=UTF-8" },
+      body: JSON.stringify({
+        action: "admin_list",
+        ...accountCredentials(account)
+      })
+    });
+
+    return Array.isArray(data.requests) ? data.requests : [];
+  } catch {
+    return [];
+  }
+}
+
+async function requestWhitelistAccess(instanceName) {
+  await loadRemoteState();
+
+  const account = getSelectedAccount();
+  const instance = lastRemoteState.instances.find((item) => item.name === String(instanceName));
+
+  if (!instance) throw new Error("Instance introuvable.");
+  if (!instance.whitelistActive) throw new Error("Cette instance est deja ouverte.");
+  if (Array.isArray(instance.whitelist) && instance.whitelist.includes(account?.name)) {
+    return { status: "accepted", message: "Tu as deja acces a cette instance." };
+  }
+
+  return fetchJson(`${webBaseUrl}/request_whitelist.php`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=UTF-8" },
+    body: JSON.stringify({
+      action: "request",
+      server_name: instance.name,
+      ...accountCredentials(account)
+    })
+  });
+}
+
+async function resolveWhitelistRequest(requestId, accept) {
+  const account = getSelectedAccount();
+  const data = await fetchJson(`${webBaseUrl}/request_whitelist.php`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=UTF-8" },
+    body: JSON.stringify({
+      action: accept ? "admin_accept" : "admin_reject",
+      request_id: Number(requestId),
+      ...accountCredentials(account)
+    })
+  });
+
+  await loadRemoteState();
+  return data;
+}
+
 function setupIpc() {
   ipcMain.handle("app:ready", async () => {
     const remote = await loadRemoteState();
     const selected = getSelectedInstance();
+    const whitelistStatus = await loadWhitelistStatus();
+    updateSelectedAccountRole(whitelistStatus.role);
+    const account = getSelectedAccount();
+    const adminWhitelistRequests = whitelistStatus.role === "admin"
+      ? await loadAdminWhitelistRequests(account)
+      : [];
+
     return {
       ...remote,
       accounts: getAccounts(),
       selectedAccountId: store.get("selectedAccountId") || null,
       selectedInstance: selected,
       settings: getSettings(),
+      whitelistRequests: whitelistStatus.pending,
+      adminWhitelistRequests,
       systemMemoryMaxGb: getSystemMemoryMaxGb(),
       webBaseUrl,
       launcherBaseUrl,
@@ -539,12 +649,21 @@ function setupIpc() {
 
   ipcMain.handle("state:get", async () => {
     const remote = await loadRemoteState();
+    const whitelistStatus = await loadWhitelistStatus();
+    updateSelectedAccountRole(whitelistStatus.role);
+    const account = getSelectedAccount();
+    const adminWhitelistRequests = whitelistStatus.role === "admin"
+      ? await loadAdminWhitelistRequests(account)
+      : [];
+
     return {
       ...remote,
       accounts: getAccounts(),
       selectedAccountId: store.get("selectedAccountId") || null,
       selectedInstance: getSelectedInstance(),
       settings: getSettings(),
+      whitelistRequests: whitelistStatus.pending,
+      adminWhitelistRequests,
       systemMemoryMaxGb: getSystemMemoryMaxGb()
     };
   });
@@ -602,6 +721,9 @@ function setupIpc() {
     store.set("selectedInstance", String(name));
     return { selectedInstance: String(name) };
   });
+
+  ipcMain.handle("whitelist:request", (_, name) => requestWhitelistAccess(name));
+  ipcMain.handle("admin:whitelist:resolve", (_, payload) => resolveWhitelistRequest(payload?.requestId, Boolean(payload?.accept)));
 
   ipcMain.handle("settings:save", (_, settings) => saveSettings(settings || {}));
 
