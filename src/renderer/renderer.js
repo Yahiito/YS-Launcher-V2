@@ -67,6 +67,18 @@ function isAdminAccount(account = selectedAccount()) {
   return String(account?.role || "").toLowerCase() === "admin";
 }
 
+function isPrivilegedAccount(account = selectedAccount()) {
+  return ["admin", "vip"].includes(String(account?.role || "").toLowerCase());
+}
+
+function canSeeInstance(instance, account = selectedAccount()) {
+  if (!instance) return false;
+  if (instance.visible === false || instance.showWhitelist === false) {
+    return isPrivilegedAccount(account);
+  }
+  return true;
+}
+
 function isInstanceWhitelisted(instance, account = selectedAccount()) {
   if (!instance?.whitelistActive) return true;
   return Array.isArray(instance.whitelist) && instance.whitelist.includes(account?.name);
@@ -143,7 +155,7 @@ function skinUrlForName(name) {
 function renderInstances() {
   const account = selectedAccount();
   els.instanceSelect.innerHTML = "";
-  const visibleInstances = state.instances.filter((instance) => isInstanceWhitelisted(instance, account));
+  const visibleInstances = state.instances.filter((instance) => canSeeInstance(instance, account) && isInstanceWhitelisted(instance, account));
 
   for (const instance of visibleInstances) {
     const option = document.createElement("option");
@@ -179,7 +191,13 @@ function renderInstanceDirectory() {
     return;
   }
 
-  for (const instance of state.instances) {
+  const visibleInstances = state.instances.filter((instance) => canSeeInstance(instance, account));
+  if (!visibleInstances.length) {
+    els.instancesList.innerHTML = `<div class="instance-directory-card">Aucune instance disponible pour ton compte.</div>`;
+    return;
+  }
+
+  for (const instance of visibleInstances) {
     const locked = Boolean(instance.whitelistActive);
     const allowed = isInstanceWhitelisted(instance, account);
     const pending = locked && !allowed && isWhitelistRequestPending(instance);

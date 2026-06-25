@@ -184,6 +184,8 @@ function getFallbackInstances(reason = null) {
         ],
         whitelist: [],
         whitelistActive: false,
+        visible: true,
+        showWhitelist: true,
         status: {
           nameServer: "Hypixel",
           ip: "mc.hypixel.net",
@@ -213,6 +215,8 @@ function getFallbackInstances(reason = null) {
         ],
         whitelist: [],
         whitelistActive: false,
+        visible: true,
+        showWhitelist: true,
         status: {
           nameServer: "MugiRP",
           ip: "mcrpbready.ddns.net",
@@ -310,11 +314,25 @@ function getSelectedAccount() {
   return accounts.find((account) => account.ID === selectedAccountId) || accounts[0] || null;
 }
 
+function isPrivilegedAccount(account) {
+  return ["admin", "vip"].includes(String(account?.role || "").toLowerCase());
+}
+
+function canSeeInstance(instance, account = getSelectedAccount()) {
+  if (!instance) return false;
+  if (instance.visible === false || instance.showWhitelist === false) {
+    return isPrivilegedAccount(account);
+  }
+  return true;
+}
+
 function getSelectedInstance() {
+  const account = getSelectedAccount();
   const selected = store.get("selectedInstance");
-  if (selected && lastRemoteState.instances.some((instance) => instance.name === selected)) return selected;
-  const firstPublic = lastRemoteState.instances.find((instance) => !instance.whitelistActive);
-  const fallback = firstPublic?.name || lastRemoteState.instances[0]?.name || null;
+  if (selected && lastRemoteState.instances.some((instance) => instance.name === selected && canSeeInstance(instance, account))) return selected;
+  const visibleInstances = lastRemoteState.instances.filter((instance) => canSeeInstance(instance, account));
+  const firstPublic = visibleInstances.find((instance) => !instance.whitelistActive);
+  const fallback = firstPublic?.name || visibleInstances[0]?.name || null;
   if (fallback) store.set("selectedInstance", fallback);
   return fallback;
 }
@@ -371,6 +389,9 @@ function buildLaunchOptions() {
   if (!account) throw new Error("Aucun compte connecte.");
   if (!instance) throw new Error("Aucune instance selectionnee.");
   if (!config) throw new Error("Configuration launcher indisponible.");
+  if (!canSeeInstance(instance, account)) {
+    throw new Error("Cette instance n'est pas visible pour ton compte.");
+  }
   if (instance.whitelistActive && !(Array.isArray(instance.whitelist) && instance.whitelist.includes(account.name))) {
     throw new Error("Tu n'as pas encore acces a cette instance.");
   }
@@ -589,6 +610,7 @@ async function requestWhitelistAccess(instanceName) {
   const instance = lastRemoteState.instances.find((item) => item.name === String(instanceName));
 
   if (!instance) throw new Error("Instance introuvable.");
+  if (!canSeeInstance(instance, account)) throw new Error("Cette instance n'est pas visible pour ton compte.");
   if (!instance.whitelistActive) throw new Error("Cette instance est deja ouverte.");
   if (Array.isArray(instance.whitelist) && instance.whitelist.includes(account?.name)) {
     return { status: "accepted", message: "Tu as deja acces a cette instance." };
@@ -624,9 +646,9 @@ async function resolveWhitelistRequest(requestId, accept) {
 function setupIpc() {
   ipcMain.handle("app:ready", async () => {
     const remote = await loadRemoteState();
-    const selected = getSelectedInstance();
     const whitelistStatus = await loadWhitelistStatus();
     updateSelectedAccountRole(whitelistStatus.role);
+    const selected = getSelectedInstance();
     const account = getSelectedAccount();
     const adminWhitelistRequests = whitelistStatus.role === "admin"
       ? await loadAdminWhitelistRequests(account)
