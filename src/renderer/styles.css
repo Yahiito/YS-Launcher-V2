@@ -95,6 +95,34 @@ textarea {
   place-items: center;
 }
 
+.startup-card {
+  width: min(430px, calc(100vw - 32px));
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+}
+
+.startup-card img {
+  width: 58px;
+  height: 58px;
+}
+
+.startup-card h1 {
+  margin: 2px 0 0;
+  font-size: 1.45rem;
+}
+
+.startup-card progress {
+  width: 100%;
+  margin-top: 4px;
+}
+
 .loader {
   width: 42px;
   height: 42px;
@@ -102,7 +130,7 @@ textarea {
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
+  margin: 6px auto 4px;
 }
 
 @keyframes spin {

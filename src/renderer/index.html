@@ -22,8 +22,14 @@
 
     <main id="app" class="app loading">
       <section class="loading-view">
-        <div class="loader"></div>
-        <p>Chargement du launcher...</p>
+        <div class="startup-card">
+          <img src="assets/icon.png" alt="">
+          <div class="loader"></div>
+          <h1>Verification des mises a jour</h1>
+          <p id="startup-status" class="message">Recherche d'une nouvelle version...</p>
+          <progress id="startup-progress" class="hidden" max="100" value="0"></progress>
+          <p id="startup-progress-text" class="message"></p>
+        </div>
       </section>
 
       <section class="login-view hidden">

@@ -37,6 +37,9 @@ const els = {
   launchMessage: document.getElementById("launch-message"),
   launchProgress: document.getElementById("launch-progress"),
   launchLog: document.getElementById("launch-log"),
+  startupStatus: document.getElementById("startup-status"),
+  startupProgress: document.getElementById("startup-progress"),
+  startupProgressText: document.getElementById("startup-progress-text"),
   updateStatus: document.getElementById("update-status"),
   instancesList: document.getElementById("instances-list"),
   instancesMessage: document.getElementById("instances-message"),
@@ -531,6 +534,9 @@ async function boot() {
   bindEvents();
   window.ys.onLaunchEvent(handleLaunchEvent);
   window.ys.onUpdateEvent(handleUpdateEvent);
+  window.ys.getLatestUpdateEvent?.().then((event) => {
+    if (event) handleUpdateEvent(event);
+  }).catch(() => {});
   try {
     const initial = await window.ys.appReady();
     applyState(initial);
@@ -779,7 +785,42 @@ function handleLaunchEvent(event) {
 }
 
 function handleUpdateEvent(event) {
-  els.updateStatus.textContent = event.message || "";
+  const message = event.message || "";
+  els.updateStatus.textContent = message;
+  if (els.startupStatus) {
+    els.startupStatus.textContent = message;
+  }
+
+  if (!els.startupProgress || !els.startupProgressText) return;
+
+  if (event.type === "available") {
+    els.startupProgress.classList.remove("hidden");
+    els.startupProgress.removeAttribute("value");
+    els.startupProgressText.textContent = "Preparation du telechargement...";
+    return;
+  }
+
+  if (event.type === "progress") {
+    const percent = Math.max(0, Math.min(100, Number(event.progress?.percent) || 0));
+    els.startupProgress.classList.remove("hidden");
+    els.startupProgress.max = 100;
+    els.startupProgress.value = percent;
+    els.startupProgressText.textContent = `${Math.round(percent)}% telecharge`;
+    return;
+  }
+
+  if (event.type === "downloaded") {
+    els.startupProgress.classList.remove("hidden");
+    els.startupProgress.max = 100;
+    els.startupProgress.value = 100;
+    els.startupProgressText.textContent = "Installation en cours...";
+    return;
+  }
+
+  if (event.type === "none" || event.type === "error") {
+    els.startupProgress.classList.add("hidden");
+    els.startupProgressText.textContent = "";
+  }
 }
 
 function escapeHtml(value) {

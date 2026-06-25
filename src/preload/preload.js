@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("ys", {
   uploadSkin: (filePath) => ipcRenderer.invoke("skin:upload", filePath),
   launch: () => ipcRenderer.invoke("game:launch"),
   cancelLaunch: () => ipcRenderer.invoke("game:cancel"),
+  getLatestUpdateEvent: () => ipcRenderer.invoke("update:latest"),
   openExternal: (url) => ipcRenderer.invoke("shell:open", url),
   minimize: () => ipcRenderer.send("window:minimize"),
   maximize: () => ipcRenderer.send("window:maximize"),

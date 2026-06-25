@@ -19,6 +19,12 @@ const store = new Store({
 
 let mainWindow = null;
 let launchRunning = false;
+let startupUpdatePromise = Promise.resolve({ updateChecked: true, skipped: true });
+let lastUpdateEvent = {
+  type: "checking",
+  message: "Recherche d'une nouvelle version...",
+  time: Date.now()
+};
 let lastRemoteState = {
   config: null,
   news: [],
@@ -88,6 +94,25 @@ function sendGame(type, message, extra = {}) {
     time: Date.now(),
     ...extra
   });
+}
+
+function sendUpdate(type, message, extra = {}) {
+  lastUpdateEvent = {
+    type,
+    message,
+    time: Date.now(),
+    ...extra
+  };
+  send("update:event", lastUpdateEvent);
+}
+
+function createDeferred() {
+  let resolve;
+  const promise = new Promise((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+
+  return { promise, resolve };
 }
 
 function createWindow() {
@@ -645,6 +670,7 @@ async function resolveWhitelistRequest(requestId, accept) {
 
 function setupIpc() {
   ipcMain.handle("app:ready", async () => {
+    await startupUpdatePromise;
     const remote = await loadRemoteState();
     const whitelistStatus = await loadWhitelistStatus();
     updateSelectedAccountRole(whitelistStatus.role);
@@ -748,6 +774,7 @@ function setupIpc() {
   ipcMain.handle("admin:whitelist:resolve", (_, payload) => resolveWhitelistRequest(payload?.requestId, Boolean(payload?.accept)));
 
   ipcMain.handle("settings:save", (_, settings) => saveSettings(settings || {}));
+  ipcMain.handle("update:latest", () => lastUpdateEvent);
 
   ipcMain.handle("server:status", async (_, status) => {
     if (!status?.ip) return { online: false, players: 0, ms: 0 };
@@ -783,19 +810,43 @@ function setupUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  autoUpdater.on("checking-for-update", () => send("update:event", { type: "checking", message: "Recherche de mise a jour..." }));
-  autoUpdater.on("update-available", (info) => send("update:event", { type: "available", message: "Mise a jour disponible.", info }));
-  autoUpdater.on("update-not-available", () => send("update:event", { type: "none", message: "Launcher a jour." }));
-  autoUpdater.on("download-progress", (progress) => send("update:event", { type: "progress", message: "Telechargement de la mise a jour...", progress }));
+  const startupUpdate = createDeferred();
+  let finishedStartupCheck = false;
+
+  function finishStartupUpdate(payload = {}) {
+    if (finishedStartupCheck) return;
+    finishedStartupCheck = true;
+    startupUpdate.resolve({ updateChecked: true, ...payload });
+  }
+
+  startupUpdatePromise = startupUpdate.promise;
+
+  autoUpdater.on("checking-for-update", () => sendUpdate("checking", "Recherche de mise a jour..."));
+  autoUpdater.on("update-available", (info) => sendUpdate("available", "Mise a jour disponible. Telechargement...", { info }));
+  autoUpdater.on("update-not-available", () => {
+    sendUpdate("none", "Launcher a jour.");
+    finishStartupUpdate({ updateAvailable: false });
+  });
+  autoUpdater.on("download-progress", (progress) => sendUpdate("progress", "Telechargement de la mise a jour...", { progress }));
   autoUpdater.on("update-downloaded", (info) => {
-    send("update:event", { type: "downloaded", message: "Mise a jour prete. Installation...", info });
+    sendUpdate("downloaded", "Mise a jour prete. Installation...", { info });
     setTimeout(() => autoUpdater.quitAndInstall(false, true), 1500);
   });
-  autoUpdater.on("error", (error) => send("update:event", { type: "error", message: error?.message || "Erreur de mise a jour." }));
+  autoUpdater.on("error", (error) => {
+    sendUpdate("error", error?.message || "Erreur de mise a jour.");
+    finishStartupUpdate({ updateAvailable: false, error: error?.message || "Erreur de mise a jour." });
+  });
 
-  if (!isDev) {
-    setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 2500);
+  if (isDev) {
+    sendUpdate("none", "Mode developpement : verification ignoree.");
+    finishStartupUpdate({ skipped: true });
+    return;
   }
+
+  autoUpdater.checkForUpdates().catch((error) => {
+    sendUpdate("error", error?.message || "Verification de mise a jour impossible.");
+    finishStartupUpdate({ updateAvailable: false, error: error?.message || "Verification de mise a jour impossible." });
+  });
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -810,8 +861,8 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     setupIpc();
-    createWindow();
     setupUpdater();
+    createWindow();
   });
 }
 
