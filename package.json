@@ -103,6 +103,7 @@
     "linux": {
       "icon": "src/renderer/assets/icon.png",
       "category": "Game",
+      "artifactName": "ys-launcher-v2-${version}-linux-${arch}.${ext}",
       "target": [
         {
           "target": "AppImage",

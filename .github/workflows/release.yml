@@ -27,9 +27,9 @@ jobs:
           - os: windows-latest
             artifact: windows
             optional: false
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             artifact: linux
-            optional: true
+            optional: false
           - os: macos-latest
             artifact: macos
             optional: false
@@ -49,18 +49,33 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            desktop-file-utils \
             libarchive-tools \
+            libfuse2 \
             rpm \
             fakeroot \
             dpkg \
             xz-utils
-          sudo apt-get install -y --no-install-recommends libfuse2t64 || sudo apt-get install -y --no-install-recommends libfuse2
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        run: npm run build -- --win nsis --x64
+
+      - name: Build Linux
+        if: runner.os == 'Linux'
+        run: npm run build -- --linux AppImage --x64
+
+      - name: Build macOS
+        if: runner.os == 'macOS'
+        run: npm run build -- --mac dmg zip --x64 --arm64
+
+      - name: Check Linux artifact
+        if: runner.os == 'Linux'
+        shell: bash
+        run: test -n "$(find dist -maxdepth 1 -name '*.AppImage' -print -quit)"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
