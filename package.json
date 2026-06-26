@@ -1,7 +1,7 @@
 {
   "name": "ys-launcher-v2",
   "productName": "Y&S Launcher V2",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Launcher Minecraft Y&S nouvelle generation",
   "main": "src/main/main.js",
   "author": {

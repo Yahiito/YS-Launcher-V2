@@ -56,6 +56,7 @@ const els = {
 
 let skinViewerInstance = null;
 let skinRenderRequest = 0;
+let serverStatusRequest = 0;
 let refreshInProgress = false;
 
 function selectedAccount() {
@@ -63,7 +64,7 @@ function selectedAccount() {
 }
 
 function selectedInstance() {
-  return state.instances.find((instance) => instance.name === state.selectedInstance) || state.instances[0] || null;
+  return state.instances.find((instance) => instance.name === state.selectedInstance) || null;
 }
 
 function isAdminAccount(account = selectedAccount()) {
@@ -177,7 +178,7 @@ function renderInstances() {
   } else {
     const option = document.createElement("option");
     option.value = "";
-    option.textContent = "Aucune instance accessible";
+    option.textContent = "Choisissez une instance";
     els.instanceSelect.appendChild(option);
   }
 
@@ -456,10 +457,11 @@ function renderWarnings() {
 }
 
 async function refreshServerStatus() {
+  const requestId = ++serverStatusRequest;
   const instance = selectedInstance();
   if (!instance?.status) {
-    els.serverName.textContent = "Minecraft";
-    els.serverStatus.textContent = "Statut indisponible";
+    els.serverName.textContent = "Choisissez une instance";
+    els.serverStatus.textContent = state.instances.length ? "Aucune instance accessible" : "Aucune instance disponible";
     els.players.textContent = "0";
     return;
   }
@@ -467,6 +469,7 @@ async function refreshServerStatus() {
   els.serverName.textContent = instance.status.nameServer || instance.name;
   els.serverStatus.textContent = "Verification...";
   const status = await window.ys.getServerStatus(instance.status).catch(() => ({ online: false }));
+  if (requestId !== serverStatusRequest || selectedInstance()?.name !== instance.name) return;
   els.serverStatus.textContent = status.online ? `En ligne - ${status.ms} ms` : "Ferme";
   els.players.textContent = String(status.players || 0);
 }
