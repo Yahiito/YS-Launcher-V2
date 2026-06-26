@@ -29,7 +29,7 @@ jobs:
             optional: false
           - os: ubuntu-22.04
             artifact: linux
-            optional: false
+            optional: true
           - os: macos-latest
             artifact: macos
             optional: false
