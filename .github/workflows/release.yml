@@ -16,8 +16,24 @@ permissions:
   contents: write
 
 jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          draft: false
+          prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name, 'beta') }}
+          generate_release_notes: true
+
   build:
     name: Build ${{ matrix.os }}
+    needs: release
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.optional == true }}
     strategy:
@@ -41,7 +57,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 18.x
           cache: npm
 
       - name: Install Linux build tools
@@ -91,24 +107,17 @@ jobs:
             dist/*.yaml
           if-no-files-found: error
 
-  release:
-    name: Create GitHub Release
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release-assets
-          merge-multiple: true
-
-      - name: Create release
+      - name: Upload files to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
-          files: release-assets/*
-          draft: false
-          prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name, 'beta') }}
-          generate_release_notes: true
+          files: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.blockmap
+            dist/*.yml
+            dist/*.yaml
+          overwrite_files: true
+          fail_on_unmatched_files: true
