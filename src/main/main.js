@@ -182,74 +182,9 @@ async function fetchJson(url, options = {}) {
 }
 
 function getFallbackInstances(reason = null) {
-  const filesUrl = `${launcherBaseUrl}/files`;
-
   return {
-    instances: [
-      {
-        name: "Minecraft",
-        url: `${filesUrl}?instance=Minecraft`,
-        loadder: {
-          minecraft_version: "1.21.11",
-          loadder_type: "forge",
-          loadder_version: "latest"
-        },
-        verify: false,
-        ignored: [
-          "config",
-          "essential",
-          "logs",
-          "resourcepacks",
-          "saves",
-          "screenshots",
-          "shaderpacks",
-          "W-OVERFLOW",
-          "options.txt",
-          "optionsof.txt"
-        ],
-        whitelist: [],
-        whitelistActive: false,
-        visible: true,
-        showWhitelist: true,
-        status: {
-          nameServer: "Hypixel",
-          ip: "mc.hypixel.net",
-          port: 25565
-        }
-      },
-      {
-        name: "MugiRP",
-        url: `${filesUrl}?instance=MugiRP`,
-        loadder: {
-          minecraft_version: "1.20.1",
-          loadder_type: "forge",
-          loadder_version: "latest"
-        },
-        verify: true,
-        ignored: [
-          "config",
-          "essential",
-          "logs",
-          "resourcepacks",
-          "saves",
-          "screenshots",
-          "shaderpacks",
-          "W-OVERFLOW",
-          "options.txt",
-          "optionsof.txt"
-        ],
-        whitelist: [],
-        whitelistActive: false,
-        visible: true,
-        showWhitelist: true,
-        status: {
-          nameServer: "MugiRP",
-          ip: "mcrpbready.ddns.net",
-          port: 25565
-        }
-      }
-    ],
-    warnings: []
+    instances: [],
+    warnings: reason ? [`Instances indisponibles: ${reason}`] : []
   };
 }
 

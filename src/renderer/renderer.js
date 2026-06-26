@@ -78,7 +78,7 @@ function isPrivilegedAccount(account = selectedAccount()) {
 function canSeeInstance(instance, account = selectedAccount()) {
   if (!instance) return false;
   if (instance.visible === false || instance.showWhitelist === false) {
-    return isPrivilegedAccount(account);
+    return isPrivilegedAccount(account) || isInstanceWhitelisted(instance, account);
   }
   return true;
 }
