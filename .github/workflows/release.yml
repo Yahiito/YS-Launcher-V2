@@ -16,24 +16,8 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
-          target_commitish: ${{ github.sha }}
-          draft: false
-          prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name, 'beta') }}
-          generate_release_notes: true
-
   build:
     name: Build ${{ matrix.os }}
-    needs: release
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.optional == true }}
     strategy:
@@ -43,7 +27,7 @@ jobs:
           - os: windows-latest
             artifact: windows
             optional: false
-          - os: ubuntu-22.04
+          - os: ubuntu-latest
             artifact: linux
             optional: true
           - os: macos-latest
@@ -57,7 +41,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18.x
+          node-version: 22
           cache: npm
 
       - name: Install Linux build tools
@@ -65,33 +49,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            desktop-file-utils \
             libarchive-tools \
-            libfuse2 \
             rpm \
             fakeroot \
             dpkg \
             xz-utils
+          sudo apt-get install -y --no-install-recommends libfuse2t64 || sudo apt-get install -y --no-install-recommends libfuse2
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Windows
-        if: runner.os == 'Windows'
-        run: npm run build -- --win nsis --x64
-
-      - name: Build Linux
-        if: runner.os == 'Linux'
-        run: npm run build -- --linux AppImage --x64
-
-      - name: Build macOS
-        if: runner.os == 'macOS'
-        run: npm run build -- --mac dmg zip --x64 --arm64
-
-      - name: Check Linux artifact
-        if: runner.os == 'Linux'
-        shell: bash
-        run: test -n "$(find dist -maxdepth 1 -name '*.AppImage' -print -quit)"
+      - name: Build
+        run: npm run build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -107,17 +76,24 @@ jobs:
             dist/*.yaml
           if-no-files-found: error
 
-      - name: Upload files to GitHub Release
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
-          files: |
-            dist/*.exe
-            dist/*.dmg
-            dist/*.zip
-            dist/*.AppImage
-            dist/*.blockmap
-            dist/*.yml
-            dist/*.yaml
-          overwrite_files: true
-          fail_on_unmatched_files: true
+          files: release-assets/*
+          draft: false
+          prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name, 'beta') }}
+          generate_release_notes: true
